@@ -1,0 +1,317 @@
+// webseite.cpp
+// ---------------------------------------------------------------------------
+// Webseite und Schnittstelle für die Seite (JSON).
+//
+//   GET  /                  die Seite selbst (HTML unten in SEITE)
+//   GET  /api/status        alle Werte und Zustände (JSON), die Seite fragt alle 2 s
+//   GET  /api/einstellungen Einstellungen ohne Passwörter (JSON)
+//   POST /api/einstellungen Einstellungen speichern, danach Neustart  (Passwort nötig)
+//   POST /api/neustart      Neustart, im Automatik-Modus auch neue Erkennung (Passwort nötig)
+//   GET  /api/wlan_suche    startet die Suche nach WLANs bzw. liefert das Ergebnis
+//
+// Passwörter werden nie an die Seite geschickt. Ein leeres Passwortfeld beim
+// Speichern behält das gespeicherte Passwort.
+// ---------------------------------------------------------------------------
+#include "webseite.h"
+#include "einstellungen.h"
+#include "messwerte.h"
+#include "zaehler.h"
+#include "fronius.h"
+#include "erkennung.h"
+#include "netz.h"
+#include "mqtt_openwb.h"
+#include "konfiguration.h"
+#include <WebServer.h>
+#include <WiFi.h>
+
+static WebServer server(80);
+static uint32_t  neustart_um_ms = 0;   // 0 = kein Neustart geplant
+
+// ---------------------------------------------------------------------------
+// Kleine Helfer für JSON
+// ---------------------------------------------------------------------------
+static String json_text(const String& s) {
+  String r = "\"";
+  for (size_t i = 0; i < s.length(); i++) {
+    const char c = s[i];
+    if (c == '"' || c == '\\') { r += '\\'; r += c; }
+    else if ((uint8_t)c < 0x20) { char b[8]; snprintf(b, sizeof(b), "\\u%04x", c); r += b; }
+    else r += c;
+  }
+  return r + "\"";
+}
+
+static String json_zahl(float v, int stellen) {
+  if (isnan(v) || isinf(v)) return "null";
+  return String(v, stellen);
+}
+
+static const char* jn(bool b) { return b ? "true" : "false"; }
+
+static bool angemeldet() {
+  if (server.authenticate(WEB_BENUTZER, einstellungen().ap_passwort.c_str())) return true;
+  server.requestAuthentication(BASIC_AUTH, "SDM72-Fronius",
+                               "Bitte als admin mit dem Passwort des ESP32-WLANs anmelden");
+  return false;
+}
+
+static String baud_text(uint32_t baud, uint32_t format) {
+  return String(baud) + ":" + format_name(format);
+}
+
+static bool baud_lesen(const String& text, uint32_t& baud, uint32_t& format) {
+  // "0" = automatisch, sonst "9600:8N1"
+  if (text == "0") { baud = 0; format = SERIAL_8N1; return true; }
+  const int p = text.indexOf(':');
+  if (p < 0) return false;
+  baud = text.substring(0, p).toInt();
+  const String f = text.substring(p + 1);
+  if (f == "8N1") format = SERIAL_8N1;
+  else if (f == "8E1") format = SERIAL_8E1;
+  else if (f == "8O1") format = SERIAL_8O1;
+  else if (f == "8N2") format = SERIAL_8N2;
+  else return false;
+  return baud >= 1200 && baud <= 115200;
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/status
+// ---------------------------------------------------------------------------
+static void status_senden() {
+  const Messwerte m = messwerte_lesen();
+  const ZaehlerStatistik z = zaehler_statistik();
+  const FroniusStatistik f = fronius_statistik();
+  const ErkennungStand er = erkennung_stand();
+  const MqttStand mq = mqtt_stand();
+  const Einstellungen& e = einstellungen();
+  const uint32_t jetzt = millis();
+
+  String j;
+  j.reserve(4096);
+  j += "{\"laufzeit_s\":" + String(jetzt / 1000);
+  j += ",\"version\":" + json_text(FIRMWARE_VERSION);
+  j += ",\"speicher_frei\":" + String(ESP.getFreeHeap());
+
+  // Zähler
+  j += ",\"zaehler\":{\"gueltig\":"; j += jn(m.gueltig);
+  j += ",\"aktuell\":"; j += jn(messwerte_aktuell(m, CACHE_MAX_ALTER_MS));
+  j += ",\"alter_ms\":" + String(m.gueltig ? jetzt - m.zeitstempel_ms : 0);
+  j += ",\"leistung_w\":" + json_zahl(m.leistung_w, 0);
+  j += ",\"bezug_kwh\":" + json_zahl(m.bezug_kwh, 2);
+  j += ",\"einspeisung_kwh\":" + json_zahl(m.einspeisung_kwh, 2);
+  j += ",\"phasen\":";
+  if (m.phasen_gueltig) {
+    j += "[";
+    for (int p = 0; p < 3; p++) {
+      if (p) j += ",";
+      j += "{\"u\":" + json_zahl(m.spannung_v[p], 1) + ",\"i\":" + json_zahl(m.strom_a[p], 2) +
+           ",\"p\":" + json_zahl(m.leistung_phase_w[p], 0) + "}";
+    }
+    j += "]";
+  } else {
+    j += "null";
+  }
+  j += ",\"phasen_vorhanden\":"; j += jn(z.phasen_vorhanden);
+  j += ",\"hz\":" + (m.frequenz_gueltig ? json_zahl(m.frequenz_hz, 2) : String("null"));
+  j += ",\"pf\":" + (m.pf_gueltig ? json_zahl(m.leistungsfaktor, 3) : String("null"));
+  j += ",\"runden_ok\":" + String(z.runden_ok);
+  j += ",\"runden_fehler\":" + String(z.runden_fehler);
+  j += ",\"fehler\":" + json_text(z.letzter_fehler);
+  j += ",\"baud\":" + String(e.zaehler_baud);
+  j += ",\"adresse\":" + String(e.zaehler_adresse);
+  j += "}";
+
+  // Fronius
+  j += ",\"fronius\":{\"bereit\":"; j += jn(f.zustand == FroniusZustand::BEREIT);
+  j += ",\"automatik\":"; j += jn(e.fronius_baud == 0 || e.fronius_adresse == 0);
+  j += ",\"erkennung\":{\"baud\":" + String(er.baud) + ",\"format\":" + json_text(format_name(er.format)) +
+       ",\"durchlaeufe\":" + String(er.durchlaeufe) + ",\"bytes\":" + String(er.bytes_gesehen) + "}";
+  j += ",\"baud\":" + String(f.baud);
+  j += ",\"format\":" + json_text(format_name(f.format));
+  j += ",\"adresse\":" + String(f.adresse);
+  j += ",\"beantwortet\":" + String(f.beantwortet);
+  j += ",\"abgelehnt\":" + String(f.abgelehnt);
+  j += ",\"ohne_antwort\":" + String(f.ohne_antwort);
+  j += ",\"sunspec\":" + String(f.sunspec_anfragen);
+  j += ",\"eastron\":" + String(f.eastron_anfragen);
+  j += ",\"seit_letzter_s\":" + String(f.zustand == FroniusZustand::BEREIT && f.letzte_anfrage_ms
+                                            ? (jetzt - f.letzte_anfrage_ms) / 1000 : 0);
+  j += ",\"modell\":" + String(e.sunspec_modell);
+  j += ",\"vorzeichen\":" + String(e.vorzeichen);
+  j += ",\"an_fronius_w\":" + json_zahl(e.vorzeichen * m.leistung_w, 0);
+  static FroniusAnfrage liste[PROTOKOLL_EINTRAEGE];
+  const size_t n = fronius_protokoll(liste, PROTOKOLL_EINTRAEGE);
+  j += ",\"protokoll\":[";
+  for (size_t i = 0; i < n; i++) {
+    const FroniusAnfrage& a = liste[i];
+    if (i) j += ",";
+    j += "{\"vor_s\":" + json_zahl((jetzt - a.zeit_ms) / 1000.0f, 1) + ",\"fc\":" + String(a.funktion) +
+         ",\"start\":" + String(a.start) + ",\"anzahl\":" + String(a.anzahl) +
+         ",\"bereich\":" + json_text(bereich_name(a.bereich)) +
+         ",\"ergebnis\":" + json_text(ergebnis_name(a.ergebnis)) + "}";
+  }
+  j += "]}";
+
+  // WLAN
+  j += ",\"wlan\":{\"name\":" + json_text(e.wlan_name);
+  j += ",\"verbunden\":"; j += jn(netz_heimnetz_verbunden());
+  j += ",\"ip\":" + json_text(netz_heimnetz_ip());
+  j += ",\"dbm\":" + String(netz_heimnetz_verbunden() ? netz_empfang_dbm() : 0);
+  j += ",\"ap_name\":" + json_text(AP_NAME);
+  j += ",\"ap_ip\":" + json_text(netz_ap_ip());
+  j += "}";
+
+  // MQTT
+  j += ",\"mqtt\":{\"aktiv\":"; j += jn(mq.aktiv);
+  j += ",\"verbunden\":"; j += jn(mq.verbunden);
+  j += ",\"code\":" + String(mq.fehlercode);
+  j += ",\"gesendet\":" + String(mq.gesendet);
+  j += ",\"ersatz\":" + String(mq.ersatz_gesendet);
+  j += ",\"server\":" + json_text(e.mqtt_server);
+  j += "}}";
+
+  server.send(200, "application/json", j);
+}
+
+// ---------------------------------------------------------------------------
+// GET/POST /api/einstellungen
+// ---------------------------------------------------------------------------
+static void einstellungen_senden() {
+  const Einstellungen& e = einstellungen();
+  String j = "{";
+  j += "\"zaehler_baud\":" + String(e.zaehler_baud);
+  j += ",\"zaehler_adresse\":" + String(e.zaehler_adresse);
+  j += ",\"fronius_baud\":" + json_text(e.fronius_baud == 0 ? String("0") : baud_text(e.fronius_baud, e.fronius_format));
+  j += ",\"fronius_adresse\":" + String(e.fronius_adresse);
+  j += ",\"modell\":" + String(e.sunspec_modell);
+  j += ",\"vorzeichen\":" + String(e.vorzeichen);
+  j += ",\"wlan_name\":" + json_text(e.wlan_name);
+  j += ",\"wlan_passwort_gesetzt\":"; j += jn(e.wlan_passwort.length() > 0);
+  j += ",\"mqtt_an\":"; j += jn(e.mqtt_an);
+  j += ",\"mqtt_server\":" + json_text(e.mqtt_server);
+  j += ",\"mqtt_port\":" + String(e.mqtt_port);
+  j += ",\"mqtt_benutzer\":" + json_text(e.mqtt_benutzer);
+  j += ",\"mqtt_passwort_gesetzt\":"; j += jn(e.mqtt_passwort.length() > 0);
+  j += ",\"ersatz_an\":"; j += jn(e.mqtt_ersatz_an);
+  j += ",\"ersatz_w\":" + String(e.mqtt_ersatz_w);
+  j += "}";
+  server.send(200, "application/json", j);
+}
+
+static void fehler(const String& text) {
+  server.send(400, "text/plain; charset=utf-8", text);
+}
+
+static void einstellungen_empfangen() {
+  if (!angemeldet()) return;
+  Einstellungen neu = einstellungen();
+
+  neu.zaehler_baud = server.arg("zaehler_baud").toInt();
+  if (neu.zaehler_baud < 1200 || neu.zaehler_baud > 115200) return fehler("Baudrate Zähler ungültig");
+  const long za = server.arg("zaehler_adresse").toInt();
+  if (za < 1 || za > 247) return fehler("Adresse Zähler muss 1–247 sein");
+  neu.zaehler_adresse = za;
+
+  if (!baud_lesen(server.arg("fronius_baud"), neu.fronius_baud, neu.fronius_format))
+    return fehler("Baudrate Fronius ungültig");
+  const long fa = server.arg("fronius_adresse").toInt();
+  if (fa < 0 || fa > 247) return fehler("Adresse Fronius muss 0 (automatisch) oder 1–247 sein");
+  neu.fronius_adresse = fa;
+
+  const long modell = server.arg("modell").toInt();
+  if (modell != 213 && modell != 203) return fehler("SunSpec-Modell muss 213 oder 203 sein");
+  neu.sunspec_modell = modell;
+  neu.vorzeichen = server.arg("vorzeichen").toInt() < 0 ? -1 : 1;
+
+  neu.wlan_name = server.arg("wlan_name");
+  neu.wlan_name.trim();
+  if (server.arg("wlan_passwort").length() > 0) neu.wlan_passwort = server.arg("wlan_passwort");
+  if (neu.wlan_name.length() == 0) neu.wlan_passwort = "";
+
+  const String ap = server.arg("ap_passwort");
+  if (ap.length() > 0) {
+    if (ap.length() < 8 || ap.length() > 63) return fehler("Passwort des ESP32-WLANs: 8–63 Zeichen");
+    neu.ap_passwort = ap;
+  }
+
+  neu.mqtt_an = server.arg("mqtt_an") == "1";
+  neu.mqtt_server = server.arg("mqtt_server");
+  neu.mqtt_server.trim();
+  const long port = server.arg("mqtt_port").toInt();
+  if (port < 1 || port > 65535) return fehler("MQTT-Port ungültig");
+  neu.mqtt_port = port;
+  neu.mqtt_benutzer = server.arg("mqtt_benutzer");
+  if (server.arg("mqtt_passwort").length() > 0) neu.mqtt_passwort = server.arg("mqtt_passwort");
+  if (neu.mqtt_benutzer.length() == 0) neu.mqtt_passwort = "";
+  if (neu.mqtt_an && neu.mqtt_server.length() == 0) return fehler("MQTT: Adresse der openWB fehlt");
+  neu.mqtt_ersatz_an = server.arg("ersatz_an") == "1";
+  const long ew = server.arg("ersatz_w").toInt();
+  if (ew < 0 || ew > 100000) return fehler("Ersatzwert muss 0–100000 W sein");
+  neu.mqtt_ersatz_w = ew;
+
+  einstellungen_speichern(neu);
+  server.send(200, "text/plain; charset=utf-8", "Gespeichert. Der ESP32 startet neu.");
+  neustart_um_ms = millis() + 1000;
+  if (neustart_um_ms == 0) neustart_um_ms = 1;
+}
+
+static void neustart_empfangen() {
+  if (!angemeldet()) return;
+  server.send(200, "text/plain; charset=utf-8", "Der ESP32 startet neu.");
+  neustart_um_ms = millis() + 1000;
+  if (neustart_um_ms == 0) neustart_um_ms = 1;
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/wlan_suche
+// ---------------------------------------------------------------------------
+static void wlan_suche() {
+  const int n = WiFi.scanComplete();
+  if (n == WIFI_SCAN_FAILED) {         // noch keine Suche: starten
+    WiFi.scanNetworks(true);
+    server.send(200, "application/json", "{\"laeuft\":true}");
+    return;
+  }
+  if (n == WIFI_SCAN_RUNNING) {
+    server.send(200, "application/json", "{\"laeuft\":true}");
+    return;
+  }
+  String j = "{\"laeuft\":false,\"netze\":[";
+  for (int i = 0; i < n; i++) {
+    if (i) j += ",";
+    j += "{\"name\":" + json_text(WiFi.SSID(i)) + ",\"dbm\":" + String(WiFi.RSSI(i)) + "}";
+  }
+  j += "]}";
+  WiFi.scanDelete();                    // nächste Anfrage startet eine neue Suche
+  server.send(200, "application/json", j);
+}
+
+// ---------------------------------------------------------------------------
+// Die Seite
+// ---------------------------------------------------------------------------
+// Die Seite selbst steht in seite.h (HTML, CSS und JavaScript in einem Stück).
+#include "seite.h"
+
+static void seite_senden() {
+  server.send_P(200, "text/html; charset=utf-8", SEITE);
+}
+
+void webseite_start() {
+  server.on("/", HTTP_GET, seite_senden);
+  server.on("/api/status", HTTP_GET, status_senden);
+  server.on("/api/einstellungen", HTTP_GET, einstellungen_senden);
+  server.on("/api/einstellungen", HTTP_POST, einstellungen_empfangen);
+  server.on("/api/neustart", HTTP_POST, neustart_empfangen);
+  server.on("/api/wlan_suche", HTTP_GET, wlan_suche);
+  server.onNotFound([]() { server.send(404, "text/plain", "nicht gefunden"); });
+  server.begin();
+}
+
+void webseite_schritt() {
+  server.handleClient();
+  if (neustart_um_ms != 0 && (int32_t)(millis() - neustart_um_ms) >= 0) {
+    Serial.println(F("[Web] Neustart"));
+    delay(100);
+    ESP.restart();
+  }
+}
