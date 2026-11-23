@@ -8,6 +8,7 @@
 //   openWB/set/evu/APhase1..3  Strom in A (+ Bezug)  openWB/set/evu/VPhase1..3  Spannung in V
 //   openWB/set/evu/WPhase1..3  Leistung je Phase     openWB/set/evu/PfPhase1..3 Leistungsfaktor
 //   openWB/set/evu/HzFrequenz  Frequenz in Hz
+// Speicher (Solarbank): openWB/set/houseBattery/W, %Soc, WhImported, WhExported.
 // Nicht "retained" senden: die openWB löscht gehaltene set-Themen selbst.
 // ---------------------------------------------------------------------------
 #pragma once
@@ -19,6 +20,8 @@ struct MqttStand {
   int      fehlercode = 0;      // PubSubClient::state()
   uint32_t gesendet = 0;        // Runden mit echten Werten
   uint32_t ersatz_gesendet = 0; // Runden mit Ersatzwert (Zählerausfall)
+  uint32_t speicher_gesendet = 0;  // Runden mit Speicherwerten (Solarbank)
+  uint32_t speicher_ersatz = 0;    // Runden mit W = 0, weil die Solarbank nicht antwortet
 };
 
 void mqtt_start();

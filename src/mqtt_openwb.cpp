@@ -11,6 +11,7 @@
 // ---------------------------------------------------------------------------
 #include "mqtt_openwb.h"
 #include "messwerte.h"
+#include "anker.h"
 #include "einstellungen.h"
 #include "netz.h"
 #include "konfiguration.h"
@@ -29,6 +30,28 @@ static void senden(const char* name, const String& wert) {
   char thema[48];
   snprintf(thema, sizeof(thema), "%s%s", THEMA, name);
   mqtt.publish(thema, wert.c_str(), false);
+}
+
+// Speicher (Anker Solarbank) an die openWB 1.9, Themen laut openWB-Hilfe:
+//   openWB/set/houseBattery/W          Leistung, Ganzzahl, + Laden, − Entladen
+//   openWB/set/houseBattery/%Soc       Ladestand 0–100
+//   openWB/set/houseBattery/WhImported geladen in Wh
+//   openWB/set/houseBattery/WhExported entladen in Wh
+// Sind die Werte veraltet, geht W = 0 hinaus: die openWB soll keinen
+// Ladevorgang des Speichers annehmen, den es nicht gibt.
+static void speicher_senden() {
+  const AnkerWerte a = anker_werte();
+  if (!a.gueltig) return;
+  if (!anker_aktuell(a)) {
+    mqtt.publish("openWB/set/houseBattery/W", "0", false);
+    stand.speicher_ersatz++;
+    return;
+  }
+  mqtt.publish("openWB/set/houseBattery/W", String(-a.batterie_w).c_str(), false);
+  mqtt.publish("openWB/set/houseBattery/%Soc", String(a.soc).c_str(), false);
+  mqtt.publish("openWB/set/houseBattery/WhImported", String(a.lade_kwh * 1000.0f, 0).c_str(), false);
+  mqtt.publish("openWB/set/houseBattery/WhExported", String(a.entlade_kwh * 1000.0f, 0).c_str(), false);
+  stand.speicher_gesendet++;
 }
 
 static void verbinden() {
@@ -113,6 +136,7 @@ void mqtt_schritt() {
   if ((uint32_t)(millis() - letzter_takt_ms) >= MQTT_TAKT_MS) {
     letzter_takt_ms = millis();
     werte_senden();
+    if (einstellungen().mqtt_speicher_an && einstellungen().anker_an) speicher_senden();
   }
 }
 

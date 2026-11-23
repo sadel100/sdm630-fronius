@@ -1,14 +1,19 @@
-# Ersteinrichtung: Zähler-Box „SDM72 → Fronius“
+# Ersteinrichtung: Zähler-Box „SDM630 → Fronius“
 
-Diese kleine Box (ein ESP32) liest den neuen Zähler **Eastron SDM72D-M** an deinem Netzanschluss
-aus und gibt die Werte weiter:
+Diese kleine Box (ein ESP32) liest
 
-- an deinen **Fronius Symo** (für Solar.web und die Verbrauchsanzeige),
-- an deine **openWB** (damit sie das Auto mit Überschuss laden kann),
+- den neuen Netzzähler **Eastron SDM630** an deinem Netzanschluss und
+- deine **Anker Solarbank Max AC** über das WLAN
+
+und gibt die Werte weiter:
+
+- an deinen **Fronius Symo** als zwei Zähler: Netzanschluss und Solarbank (für Solar.web),
+- an deine **openWB** (Netzanschluss und Speicher, damit sie das Auto mit Überschuss laden kann),
 - an eine **Webseite**, die du mit Handy oder PC öffnen kannst.
 
 Der bisherige Zähler am S0-Eingang des Fronius (SDM72DR) wird dafür nicht mehr gebraucht.
-Deine **Anker Solarbank** bleibt, wie sie ist. Sie regelt weiter mit ihrem eigenen Anker Smart Meter.
+Deine Solarbank regelt weiter selbst mit ihrem Anker Smart Meter. Die Box liest sie nur aus und
+verändert an ihr nichts.
 
 Die Box ist schon fertig programmiert. Du musst nichts flashen.
 
@@ -17,39 +22,41 @@ Die Box ist schon fertig programmiert. Du musst nichts flashen.
 ## Was du brauchst
 
 - die Box (ESP32 mit zwei kleinen RS485-Platinen)
-- ein USB-Netzteil (5 V, mindestens 1 A) und ein USB-Kabel
-- zweiadrige Leitung (am besten verdrillt, z. B. eine Ader-Paar aus einem Netzwerkkabel)
-  - vom Zähler zur Box
+- ein 5-V-Hutschienennetzteil
+- zweiadrige Leitung (am besten verdrillt, z. B. ein Aderpaar aus einem Netzwerkkabel)
+  - vom SDM630 zur Box
   - von der Box zum Fronius Datamanager
 - ein Handy oder einen Laptop mit WLAN
 - das Passwort deines WLANs
-- die IP-Adresse deiner openWB (steht im Router, z. B. in der Fritzbox unter „Heimnetz“)
+- die IP-Adressen deiner **openWB**, deiner **Solarbank** und deines **Fronius** (stehen im Router,
+  z. B. in der Fritzbox unter „Heimnetz“; am besten dort allen dreien eine feste Adresse geben)
 
-> ⚠️ **Sicherheit:** Der Zähler SDM72D-M sitzt im Zählerschrank an 230/400 V. Den Einbau des
-> Zählers macht **nur eine Elektrofachkraft**. Die Leitungen zur Box führen nur Kleinspannung,
+> ⚠️ **Sicherheit:** Der SDM630 sitzt im Zählerschrank an 230/400 V. Den Einbau des Zählers
+> macht **nur eine Elektrofachkraft**. Die Leitungen zur Box führen nur Kleinspannung,
 > sie dürfen aber nicht zusammen mit 230-V-Leitungen an offenen Klemmen hängen.
 
 ---
 
 ## Schritt 1: Box einschalten und verbinden
 
-1. Box mit dem USB-Netzteil verbinden. Noch keine Leitungen anschließen.
-2. Am Handy die WLAN-Liste öffnen. Nach etwa 10 Sekunden erscheint das WLAN **„SDM72-Fronius“**.
-3. Damit verbinden. Passwort: **sdm72fronius**
+1. Box mit dem Netzteil verbinden. Noch keine Leitungen anschließen.
+2. Am Handy die WLAN-Liste öffnen. Nach etwa 10 Sekunden erscheint das WLAN **„SDM630-Fronius“**.
+3. Damit verbinden. Passwort: **sdm630fronius**
    (Das Handy meldet vielleicht „kein Internet“. Einfach verbunden bleiben.)
 4. Im Browser die Adresse **http://192.168.4.1** öffnen.
 
-Du siehst jetzt die Seite der Box mit den vier Reitern **Übersicht, Diagnose, Einstellungen,
-So funktioniert's**. Oben stehen vier farbige Punkte:
+Du siehst die Seite der Box mit den fünf Reitern **Übersicht, Verlauf, Diagnose, Einstellungen,
+So funktioniert's**. Oben stehen farbige Punkte:
 
 | Punkt | Grün heißt | Rot/Orange heißt |
 |---|---|---|
-| Zähler | Zähler antwortet | Zähler antwortet nicht |
+| Netzzähler | SDM630 antwortet | antwortet nicht |
 | Fronius | Fronius fragt ab | Box sucht noch / keine Anfragen |
+| Solarbank | Solarbank antwortet | antwortet nicht |
 | Heimnetz | Box ist in deinem WLAN | nicht verbunden |
 | openWB | Werte gehen an die openWB | keine Verbindung |
 
-Jetzt ist noch alles rot oder orange. Das ist richtig so.
+Jetzt ist noch alles rot, orange oder grau. Das ist richtig so.
 
 ---
 
@@ -60,96 +67,117 @@ Reiter **Einstellungen**:
 1. **Heimnetz (WLAN):** auf „WLANs suchen“ tippen, in der Liste darunter dein WLAN auswählen,
    dein WLAN-Passwort eintragen.
 2. **Zugang zu diesem Gerät:** ein neues Passwort ausdenken (mindestens 8 Zeichen) und eintragen.
-   **Gut aufschreiben!** Es gilt danach für das WLAN „SDM72-Fronius“ und zum Speichern auf der Seite.
+   **Gut aufschreiben!** Es gilt danach für das Geräte-WLAN und zum Speichern auf der Seite.
 3. Ganz unten **„Speichern und neu starten“**.
-4. Der Browser fragt nach einer Anmeldung: Benutzer **admin**, Passwort **sdm72fronius**
+4. Der Browser fragt nach einer Anmeldung: Benutzer **admin**, Passwort **sdm630fronius**
    (beim ersten Mal noch das alte Passwort).
 5. Die Box startet neu (etwa 10 Sekunden).
 
 Ab jetzt erreichst du die Seite auch in deinem normalen WLAN unter
-**http://sdm72-fronius.local**. Klappt das nicht (manche Android-Handys kennen solche Namen nicht),
-steht die IP-Adresse der Box im Router, Gerätename „sdm72-fronius“.
+**http://sdm630-fronius.local**. Klappt das nicht (manche Android-Handys kennen solche Namen nicht),
+steht die IP-Adresse der Box im Router, Gerätename „sdm630-fronius“.
 
 ---
 
-## Schritt 3: Zähler anschließen
+## Schritt 3: Netzzähler SDM630 anschließen
 
-1. Box vom Strom trennen.
-2. Leitung vom Zähler an die Klemmen **„Zähler“** der Box: **A an A, B an B**
-   (am SDM72D-M heißen die Klemmen ebenfalls A und B), GND, falls vorhanden.
-3. Box wieder einschalten, Seite öffnen.
+1. Am SDM630 im Setup-Menü nachsehen: **Adresse** (meist 1), **Baudrate** (meist 9600) und
+   **Parität** (None oder Even). Aufschreiben.
+2. Box vom Strom trennen.
+3. Leitung vom SDM630 an die Klemmen **„Zähler“** der Box: **A an A, B an B**, GND, falls vorhanden.
+4. Box einschalten, Seite öffnen. Unter **Einstellungen → Netzzähler SDM630** Baudrate, Format
+   (8N1 = keine Parität, 8E1 = Even) und Adresse wie am Zähler einstellen, speichern.
 
 **Prüfen (Reiter Übersicht):**
-- Der Punkt **Zähler** ist grün.
-- Oben steht die Leistung am Netzanschluss:
-  - **orange und positiv** = du beziehst gerade Strom aus dem Netz,
-  - **grün und negativ** = die Anlage speist gerade ein.
-- Vergleiche die Zählerstände (Bezug und Einspeisung in kWh) mit der Anzeige am Zähler.
-  Sie müssen übereinstimmen.
+- Der Punkt **Netzzähler** ist grün.
+- Oben steht die Leistung am Netzanschluss: **orange und positiv** = Bezug aus dem Netz,
+  **grün und negativ** = Einspeisung.
+- Die Zählerstände (Bezug und Einspeisung in kWh) stimmen mit der Anzeige am SDM630 überein.
 
-**Zähler bleibt rot?**
-- A und B vertauschen (das ist der häufigste Fehler).
-- Im Setup-Menü des Zählers Baudrate und Adresse nachsehen (meist 9600 und 1).
-  Unter **Einstellungen → Zähler SDM72D-M** genauso eintragen und speichern.
+**Bleibt er rot?** A und B vertauschen (häufigster Fehler), dann Parität und Adresse prüfen.
 
 ---
 
-## Schritt 4: openWB einrichten
+## Schritt 4: Solarbank einrichten
 
-**Auf der Seite der Box** (Reiter Einstellungen → openWB):
-1. Haken bei **„Werte an die openWB senden“**.
-2. **Adresse der openWB** eintragen (IP aus dem Router, z. B. 192.168.178.20).
-3. Port **1883**, Benutzer und Passwort leer lassen.
-4. Haken bei **„Bei Zählerausfall Ersatzwert senden“** drin lassen (10 000 W).
-5. Speichern.
+**In der Anker-App:** Gerät antippen → Zahnrad → **„Three-Party Control Settings“** →
+**„Modbus TCP“** einschalten. Dort steht auch die IP-Adresse der Solarbank.
 
-**In der openWB** (Software 1.9):
-1. Einstellungen → Modulkonfiguration → **EVU**.
-2. Als Modul **„MQTT“** auswählen und speichern.
-   (Der bisherige EVU-Zähler der openWB wird damit ersetzt.)
+**Auf der Seite der Box** (Einstellungen → Anker Solarbank):
+1. Haken bei **„Solarbank abfragen“**.
+2. **IP-Adresse** der Solarbank eintragen. Port **502** und Unit-ID **1** so lassen.
+3. Speichern.
 
-**Prüfen:**
-- Auf der Seite der Box ist der Punkt **openWB** grün.
-- Auf der Startseite der openWB steht bei **EVU** dieselbe Leistung wie auf der Box
-  (Bezug positiv, Einspeisung negativ).
+**Prüfen:** Der Punkt **Solarbank** ist grün, in der Übersicht stehen Ladestand und
+„lädt mit …“ bzw. „entlädt mit …“. Vergleiche mit der Anker-App.
 
-Warum der Ersatzwert? Fällt der Zähler aus, würde die openWB sonst mit dem letzten Wert
+---
+
+## Schritt 5: openWB einrichten
+
+**Auf der Seite der Box** (Einstellungen → openWB):
+1. Haken bei **„Werte an die openWB senden“** und **„Solarbank als Speicher an die openWB senden“**.
+2. **Adresse der openWB** eintragen. Port **1883**, Benutzer und Passwort leer lassen.
+3. Haken bei **„Bei Zählerausfall Ersatzwert senden“** drin lassen (10 000 W).
+4. Speichern.
+
+**In der openWB** (Software 1.9), Einstellungen → Modulkonfiguration:
+1. **EVU:** Modul **„MQTT“** wählen und speichern.
+2. **Speicher:** Modul **„MQTT“** wählen und speichern.
+
+**Prüfen:** Auf der Box ist der Punkt **openWB** grün. Auf der Startseite der openWB steht bei
+**EVU** dieselbe Leistung wie auf der Box, beim **Speicher** Ladestand und Leistung der Solarbank
+(Laden positiv).
+
+Warum der Ersatzwert? Fällt der Netzzähler aus, würde die openWB sonst mit dem letzten Wert
 weiterladen. Mit dem hohen Ersatzwert sieht sie „kein Überschuss“ und hört auf, aus PV zu laden.
 
 ---
 
-## Schritt 5: Fronius einrichten
+## Schritt 6: Fronius einrichten
 
-**Im Fronius Datamanager** (Weboberfläche des Wechselrichters, Menüpunkt „Zähler“):
+**Im Fronius Datamanager** (Weboberfläche des Wechselrichters, Einstellungen → Zähler):
 1. Den bisherigen **S0-Zähler** entfernen bzw. abwählen.
-2. Als Zähler **„Fronius Smart Meter“** wählen, Einbauort **Einspeisepunkt**. Speichern.
+2. **Primärzähler:** „Fronius Smart Meter“, Einbauort **Einspeisepunkt**. Speichern.
+3. **Sekundärzähler:** „Fronius Smart Meter“ hinzufügen, Bezeichnung z. B. „Solarbank“,
+   Modbus-Adresse **2**. Speichern.
 
 **Leitung anschließen:**
 1. Box vom Strom trennen.
-2. Leitung von den Zähler-Klemmen des Datamanagers (Modbus/RS485, meist mit „D+ / D−“
-   oder „A / B“ beschriftet) an die Klemmen **„Fronius“** der Box.
+2. Leitung von den Zähler-Klemmen des Datamanagers (Modbus/RS485, meist „D+ / D−“) an die
+   Klemmen **„Fronius“** der Box.
 3. Box einschalten.
 
 **Was jetzt passiert:** Die Box hört zuerst nur zu und findet selbst heraus, wie der Fronius
 fragt. Das dauert ein paar Sekunden bis etwa eine Minute. Unter **Diagnose** siehst du
-„Erkennung läuft“ und danach „fragt ab“.
+„Erkennung läuft“ und danach in der Tabelle die Anfragen an **Netzzähler** und **Solarbank**.
 
 **Prüfen:**
-- Der Punkt **Fronius** ist grün.
-- Im Datamanager wird der Zähler als erkannt angezeigt (kein Zählerfehler).
-- In **Solar.web** stimmen nach ein paar Minuten Einspeisung und Verbrauch.
-  Zeigt Solar.web Einspeisung als Bezug: **Einstellungen → Fronius → Vorzeichen umdrehen**.
+- Der Punkt **Fronius** ist grün, unter Diagnose sind bei beiden Zählern Anfragen „beantwortet“.
+- Im Datamanager werden beide Zähler ohne Fehler angezeigt.
+- In **Solar.web** stimmen nach ein paar Minuten Einspeisung und Verbrauch. Die Solarbank erscheint
+  dort als eigene Kurve (Laden positiv). Zeigt Solar.web Einspeisung als Bezug:
+  **Einstellungen → Fronius → Vorzeichen umdrehen**.
 
-**Fronius bleibt orange?**
+**PV-Leistung und Hausverbrauch (Solar API):** Damit die Box auch weiß, was der Symo gerade erzeugt,
+liest sie seine Leistung über das WLAN (nur lesen).
+1. Im Datamanager die **Solar API** einschalten (Einstellungen → Kommunikation bzw. „Solar API“).
+2. Auf der Box unter **Einstellungen → Fronius**: Haken bei **„PV-Leistung über die Solar API lesen“**,
+   die **Adresse des Fronius** eintragen, speichern.
+3. Prüfen: Auf der Übersicht zeigt der **Energiefluss** die PV-Leistung und den Hausverbrauch.
+
+**Klappt es nicht?**
 
 | Diagnose zeigt | Was tun |
 |---|---|
 | „Auf der Leitung zum Fronius kommt nichts an“ | Leitung prüfen, A und B tauschen, im Datamanager „Fronius Smart Meter“ eingestellt? |
+| Solarbank: „noch keine Anfrage an Adresse 2“ | Sekundärzähler im Datamanager angelegt? Adresse dort und auf der Box gleich? |
 | viele Zeilen **„abgelehnt“** in der Tabelle | Foto von der Tabelle machen und weitergeben, dann kann die Box angepasst werden |
-| „fragt, keine Antwort“ | Der Zähler antwortet nicht (siehe Schritt 3) |
-| Datamanager nimmt den Zähler nicht an | Einstellungen → Fronius → SunSpec-Modell auf **203** stellen, speichern, ausprobieren |
+| „fragt, bekommt aber keine Antwort“ | Netzzähler bzw. Solarbank antwortet nicht (Schritt 3 bzw. 4) |
+| Datamanager nimmt die Zähler nicht an | Einstellungen → Fronius → SunSpec-Modell auf **203**, speichern, ausprobieren |
+| Solar API „antwortet nicht“ | Solar API im Datamanager eingeschaltet? Adresse des Fronius richtig? |
 
-> Das ist der einzige Teil, der vorher nicht getestet werden konnte. Wenn hier etwas nicht klappt,
+> Das ist der Teil, der vorher nicht getestet werden konnte. Wenn hier etwas nicht klappt,
 > bitte **Fotos vom Reiter „Diagnose“** (ganz nach unten scrollen) schicken.
 
 ---
@@ -160,19 +188,37 @@ Fertig. Die Box braucht keine Pflege. Nach einem Stromausfall startet sie von se
 alle Einstellungen.
 
 **Gut zu wissen:**
-- Die Seite kannst du jederzeit unter **http://sdm72-fronius.local** ansehen.
-- Unter **„So funktioniert's“** auf der Seite steht noch einmal, was die Box macht und was bei
-  Störungen passiert.
-- Kommst du nicht mehr an die Seite: mit dem Handy ins WLAN **„SDM72-Fronius“** (dein eigenes
+- Die Seite kannst du jederzeit unter **http://sdm630-fronius.local** ansehen.
+- Unter **Verlauf** siehst du die letzten 24 Stunden als Kurve und die Energie von heute, gestern,
+  diesem Monat und den letzten 12 Monaten. Die Tageswerte beginnen um Mitternacht.
+- Unter **Diagnose → Ereignisse** steht, wann etwas ausgefallen und wiedergekommen ist.
+- **Etwas stimmt nicht?** Unter **Diagnose** ganz unten auf **„Diagnose-Datei herunterladen“** tippen
+  und die Datei per Mail schicken. Passwörter stehen nicht darin.
+- Unter **„So funktioniert's“** steht noch einmal, was die Box macht und was bei Störungen passiert.
+- Kommst du nicht mehr an die Seite: mit dem Handy ins WLAN **„SDM630-Fronius“** (dein eigenes
   Passwort aus Schritt 2), dann **http://192.168.4.1**.
 - Passwort vergessen: Die Box muss am PC neu programmiert werden.
+
+## Neue Version einspielen (Update)
+
+Unter **Einstellungen → Firmware-Update**, ganz unten:
+
+- **Von GitHub:** „Nach Updates suchen“. Gibt es eine neue Version, steht dort, was sich ändert.
+  „Installieren“ antippen, mit admin und deinem Passwort anmelden. Die Box lädt die neue Version
+  und startet neu (etwa 1 Minute). Dafür braucht die Box Internet.
+- **Aus einer Datei:** Hast du eine Datei `sdm630-fronius-….bin` bekommen: „Datei auswählen“,
+  „Datei hochladen und installieren“. Geht auch ohne Internet.
+
+Während des Updates den Strom nicht trennen. Deine Einstellungen bleiben erhalten. Läuft die neue
+Version nicht, startet die Box nach einem Absturz von selbst wieder mit der alten Version.
 
 ## Was bei Störungen passiert
 
 | Störung | Fronius | openWB |
 |---|---|---|
-| Zähler antwortet nicht | bekommt keine Antwort und meldet Zählerfehler | bekommt 10 000 W Bezug, hört auf, aus PV zu laden |
-| WLAN weg | läuft normal weiter | bekommt keine Werte (letzter Wert bleibt stehen) |
+| Netzzähler antwortet nicht | bekommt für den Netzzähler keine Antwort, meldet Zählerfehler | EVU: 10 000 W Bezug, hört auf, aus PV zu laden |
+| Solarbank antwortet nicht | bekommt für den zweiten Zähler keine Antwort | Speicher: 0 W |
+| WLAN weg | Netzzähler läuft weiter, Solarbank-Zähler antwortet nicht mehr | bekommt keine Werte (letzter Wert bleibt stehen) |
 | Box ohne Strom | meldet Zählerfehler | bekommt keine Werte (letzter Wert bleibt stehen) |
 
 Bei den letzten beiden Fällen kann die openWB mit einem alten Wert weiterladen, bis die Box wieder

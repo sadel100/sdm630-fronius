@@ -19,11 +19,33 @@ void einstellungen_laden() {
   p.begin(BEREICH, false);  // legt den Bereich beim ersten Start an
   aktuell.zaehler_baud    = p.getULong("z_baud", VORGABE_ZAEHLER_BAUD);
   aktuell.zaehler_adresse = p.getUChar("z_adr", VORGABE_ZAEHLER_ADRESSE);
+  aktuell.zaehler_format  = p.getULong("z_form", ZAEHLER_FORMAT);
   aktuell.fronius_baud    = p.getULong("f_baud", VORGABE_FRONIUS_BAUD);
   aktuell.fronius_format  = p.getULong("f_form", SERIAL_8N1);
   aktuell.fronius_adresse = p.getUChar("f_adr", VORGABE_FRONIUS_ADRESSE);
   aktuell.sunspec_modell  = p.getUShort("modell", VORGABE_SUNSPEC_MODELL);
   aktuell.vorzeichen      = p.getChar("vorz", VORGABE_VORZEICHEN);
+  aktuell.zweit_adresse   = p.getUChar("z2_adr", VORGABE_ZWEIT_ADRESSE);
+#ifdef TEST_ANKER_IP
+  // Nur für Tests am PC (Bauschalter -DTEST_ANKER_IP=\"…\"): Solarbank-Simulator
+  // als Vorgabe, solange auf der Webseite nichts gespeichert ist.
+  aktuell.anker_an        = p.getBool("a_an", true);
+  aktuell.anker_ip        = text_lesen(p, "a_ip", TEST_ANKER_IP);
+#else
+  aktuell.anker_an        = p.getBool("a_an", false);
+  aktuell.anker_ip        = text_lesen(p, "a_ip", "");
+#endif
+  aktuell.anker_port      = p.getUShort("a_port", VORGABE_ANKER_PORT);
+  aktuell.anker_unit      = p.getUChar("a_unit", VORGABE_ANKER_UNIT);
+  aktuell.mqtt_speicher_an = p.getBool("m_spei", true);
+#ifdef TEST_FRONIUS_IP
+  // Nur für Tests am PC (Bauschalter -DTEST_FRONIUS_IP=\"…\"): Solar-API-Simulator
+  aktuell.solarapi_an     = p.getBool("s_an", true);
+  aktuell.fronius_ip      = text_lesen(p, "s_ip", TEST_FRONIUS_IP);
+#else
+  aktuell.solarapi_an     = p.getBool("s_an", false);
+  aktuell.fronius_ip      = text_lesen(p, "s_ip", "");
+#endif
   aktuell.erkannt_baud    = p.getULong("e_baud", 0);
   aktuell.erkannt_format  = p.getULong("e_form", SERIAL_8N1);
   aktuell.erkannt_adresse = p.getUChar("e_adr", 0);
@@ -59,11 +81,20 @@ void einstellungen_speichern(const Einstellungen& neu) {
   p.begin(BEREICH, false);
   p.putULong("z_baud", neu.zaehler_baud);
   p.putUChar("z_adr", neu.zaehler_adresse);
+  p.putULong("z_form", neu.zaehler_format);
   p.putULong("f_baud", neu.fronius_baud);
   p.putULong("f_form", neu.fronius_format);
   p.putUChar("f_adr", neu.fronius_adresse);
   p.putUShort("modell", neu.sunspec_modell);
   p.putChar("vorz", neu.vorzeichen);
+  p.putUChar("z2_adr", neu.zweit_adresse);
+  p.putBool("a_an", neu.anker_an);
+  p.putString("a_ip", neu.anker_ip);
+  p.putUShort("a_port", neu.anker_port);
+  p.putUChar("a_unit", neu.anker_unit);
+  p.putBool("m_spei", neu.mqtt_speicher_an);
+  p.putBool("s_an", neu.solarapi_an);
+  p.putString("s_ip", neu.fronius_ip);
   p.putString("w_name", neu.wlan_name);
   p.putString("w_pw", neu.wlan_passwort);
   p.putString("ap_pw", neu.ap_passwort);

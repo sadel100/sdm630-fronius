@@ -101,11 +101,12 @@ static uint8_t lauschen(const Moeglichkeit& m, uint8_t fest_adresse, ErkennungSt
   }
 
   if (gueltig < ERKENNUNG_MIN_ANFRAGEN) return 0;
-  uint8_t beste = 0;
+  // Kleinste gefragte Adresse = Primärzähler (der Fronius gibt ihm Adresse 1,
+  // Sekundärzählern 2–14).
   for (int a = 1; a <= 247; a++) {
-    if (treffer[a] > (beste ? treffer[beste] : 0)) beste = a;
+    if (treffer[a] > 0) return a;
   }
-  return beste;
+  return 0;
 }
 
 void erkennung_ausfuehren(uint32_t fest_baud, uint32_t fest_format, uint8_t fest_adresse) {
