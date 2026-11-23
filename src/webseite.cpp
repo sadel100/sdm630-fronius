@@ -544,7 +544,9 @@ static void update_suchen_empfangen() {
 }
 
 static void update_installieren_empfangen() {
+#ifndef TEST_UPLOAD_OHNE_ANMELDUNG
   if (!angemeldet()) return;
+#endif
   if (!update_installieren()) return fehler("Keine gefundene Version zum Installieren.");
   update_senden();
 }

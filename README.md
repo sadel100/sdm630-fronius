@@ -133,7 +133,7 @@ Ereignisse, Energiewerte und Verlauf.
 - Bauschalter **nur für Tests**, nie für die Anlage (über `PLATFORMIO_BUILD_FLAGS`):
   - `-DTEST_ANKER_IP=\"<IP des PCs>\"`, `-DTEST_FRONIUS_IP=\"<IP des PCs>:<Port>\"`:
     Simulatoren als Vorgabe, solange auf der Webseite nichts gespeichert ist.
-  - `-DTEST_UPLOAD_OHNE_ANMELDUNG`: Datei-Update ohne Passwort.
+  - `-DTEST_UPLOAD_OHNE_ANMELDUNG`: Update (Datei und GitHub-Installation) ohne Passwort.
   - `-DTEST_VERSION=\"1.3.1\"`: andere Versionsnummer (für Update-Tests).
   - `-DTEST_ABSTURZ_NACH_MS=25000`: stürzt absichtlich ab (Test des Rückfalls).
 - Ein Werkzeug, das den Fronius Datamanager (RS485) oder den SDM630 spielt, gibt es nicht.
