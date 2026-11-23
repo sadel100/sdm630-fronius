@@ -183,4 +183,3 @@ Ereignisse, Energiewerte und Verlauf.
 | `tools/lochraster_plan.py` | erzeugt den Bestückungsplan |
 | `ANLEITUNG_Ersteinrichtung.md` | Anleitung für den Betreiber |
 | `docs/Lochraster_Bauanleitung.md` | Platine bauen |
-| `referenz/` | alter OLED-Code (nur zum Nachsehen) |
