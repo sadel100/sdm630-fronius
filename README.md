@@ -106,6 +106,9 @@ Startgrund (Strom weg, Absturz, Wächter, Unterspannung), Uhrzeit gestellt, Firm
   `sdm630-fronius-<Version>.bin`. Nur eine höhere Versionsnummer wird angeboten.
 - **Datei:** `sdm630-fronius-<Version>.bin` auf der Webseite hochladen (geht ohne Internet).
   Der Kopf der Datei wird geprüft (Kennung 0xE9, Chip ESP32), am Ende die Prüfsumme.
+- Geprüft am 23.11.2026 am ESP32: Suche und Installation der Release v1.3.0 von GitHub (etwa 1 min,
+  die Webseite antwortet währenddessen langsamer), Update per Datei, Ablehnung falscher Dateien,
+  Probezeit und Rückfall nach einem Absturz.
 - **Probezeit:** Eine neue Version muss 60 s fehlerfrei laufen, sonst startet der Bootloader wieder
   die alte (Rollback des ESP-IDF). Beides steht im Ereignisprotokoll.
 - Programmspeicher: Aufteilung `min_spiffs.csv`, zwei Hälften zu je 1,9 MB. Die Einstellungen (NVS)
@@ -152,9 +155,6 @@ Ereignisse, Energiewerte und Verlauf.
 - Solar API am echten Datamanager 2.0 (Menüname zum Einschalten, ob `E_Total` geliefert wird).
 - Ob „PV der Solarbank + Batterieleistung“ ungefähr der Abgabe der Solarbank ins Haus entspricht
   (Vergleich mit Register 10208 und der Anker-App).
-- Update von GitHub bis zum Ende: getestet sind nur die Suche (verschlüsselte Verbindung, Antwort
-  „keine Release“), Update per Datei, Probezeit und Rückfall. Der Download einer echten Release
-  ist erst nach der ersten Veröffentlichung prüfbar.
 
 ## Dateien
 
